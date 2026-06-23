@@ -36,3 +36,39 @@ class ProcurementRecommendation(BaseModel):
         if not value.strip():
             raise ValueError("rationale must be a non-empty string")
         return value
+
+
+RiskLevel = Literal["low", "medium", "high", "critical"]
+RiskErrorCode = Literal["vendor_not_found", "vendor_data_unavailable"]
+
+
+class RiskAssessmentError(BaseModel):
+    """Structured error payload for deterministic risk fallback behavior."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    code: RiskErrorCode
+    message: str
+    vendor_id: str | None = None
+
+
+class RiskAssessmentResult(BaseModel):
+    """Structured output contract for the assess_risk tool."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    vendor_id: str
+    compliance_flag: bool
+    compliance_notes: str
+    contract_status: str
+    risk_level: RiskLevel
+    risk_summary: str
+    error: RiskAssessmentError | None = None
+
+    @field_validator("risk_summary")
+    @classmethod
+    def risk_summary_non_empty(cls, value: str) -> str:
+        """Enforce that risk_summary is not blank or whitespace-only."""
+        if not value.strip():
+            raise ValueError("risk_summary must be a non-empty string")
+        return value

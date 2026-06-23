@@ -75,6 +75,13 @@ At certification, each category must clear an 80% bar to pass; teams should targ
 
 ## Project Structure
 
+## Implemented Tool Modules
+
+- `tools.budget.check_budget`
+- `tools.vendor_duplication.check_vendor_duplication`
+- `tools.policy_compliance.check_policy_compliance`
+- `tools.risk_assessment.assess_risk`
+
 ```
 procurement-agent/
 ├── agent.py              # Main Pydantic AI agent (you build this)
