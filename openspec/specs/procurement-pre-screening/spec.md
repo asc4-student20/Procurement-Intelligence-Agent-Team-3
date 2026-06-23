@@ -1,4 +1,7 @@
-## ADDED Requirements
+## Purpose
+Define top-level procurement pre-screening behavior and output contracts.
+
+## Requirements
 
 ### Requirement: Agent produces structured procurement recommendation
 The system SHALL evaluate each valid purchase request and return a structured `ProcurementRecommendation` containing `request_id`, `decision`, and `rationale`.

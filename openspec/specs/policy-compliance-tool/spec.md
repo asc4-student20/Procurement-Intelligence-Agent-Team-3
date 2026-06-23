@@ -1,4 +1,7 @@
-## ADDED Requirements
+## Purpose
+Define policy-compliance evaluation requirements for procurement requests.
+
+## Requirements
 
 ### Requirement: check_policy_compliance SHALL evaluate all eight policies
 The system SHALL provide a tool named check_policy_compliance that accepts a purchase request and evaluates it against every policy in mock_data/policies.json (POL-001 through POL-008).
