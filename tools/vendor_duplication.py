@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from data.loader import load_policies, load_vendors
+from data import loader
+
+
+def _error_payload(error_type: str, message: str, stage: str) -> dict[str, str]:
+    """Build a normalized typed error payload for deterministic escalation handling."""
+    return {
+        "type": error_type,
+        "message": message,
+        "stage": stage,
+    }
 
 
 def check_vendor_duplication(
@@ -43,8 +52,42 @@ def check_vendor_duplication(
     safe_amount = float(total_amount)
 
     try:
-        vendors = load_vendors()
-        policies = load_policies()
+        vendors = loader.load_vendors()
+        policies = loader.load_policies()
+    except FileNotFoundError as exc:
+        return {
+            "vendor_id": vendor_id,
+            "category": category,
+            "total_amount": safe_amount,
+            "threshold_amount": 25_000.0,
+            "contracted_category": False,
+            "conflicting_vendor_ids": [],
+            "conflicting_vendors": [],
+            "triggered": False,
+            "reason": "Unable to evaluate vendor duplication due to data load error.",
+            "error": _error_payload(
+                "file_not_found",
+                f"Vendor/policy data file not found: {exc}",
+                "load_vendor_policy_inputs",
+            ),
+        }
+    except KeyError as exc:
+        return {
+            "vendor_id": vendor_id,
+            "category": category,
+            "total_amount": safe_amount,
+            "threshold_amount": 25_000.0,
+            "contracted_category": False,
+            "conflicting_vendor_ids": [],
+            "conflicting_vendors": [],
+            "triggered": False,
+            "reason": "Unable to evaluate vendor duplication due to data load error.",
+            "error": _error_payload(
+                "key_error",
+                f"Vendor/policy input data missing required key: {exc}",
+                "load_vendor_policy_inputs",
+            ),
+        }
     except Exception as exc:  # pragma: no cover - defensive branch
         return {
             "vendor_id": vendor_id,
@@ -56,7 +99,11 @@ def check_vendor_duplication(
             "conflicting_vendors": [],
             "triggered": False,
             "reason": "Unable to evaluate vendor duplication due to data load error.",
-            "error": f"Vendor/policy data unavailable: {exc}",
+            "error": _error_payload(
+                "unexpected_error",
+                f"Vendor/policy data unavailable: {exc}",
+                "load_vendor_policy_inputs",
+            ),
         }
 
     threshold_amount = 25_000.0

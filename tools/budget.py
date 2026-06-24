@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from data.loader import load_budgets
+from data import loader
+
+
+def _error_payload(error_type: str, message: str, stage: str) -> dict[str, str]:
+    """Build a normalized typed error payload for deterministic escalation handling."""
+    return {
+        "type": error_type,
+        "message": message,
+        "stage": stage,
+    }
 
 
 def check_budget(cost_center_id: str, requested_amount: float) -> dict[str, Any]:
@@ -39,7 +48,33 @@ def check_budget(cost_center_id: str, requested_amount: float) -> dict[str, Any]
     safe_requested_amount = float(requested_amount)
 
     try:
-        budgets = load_budgets()
+        budgets = loader.load_budgets()
+    except FileNotFoundError as exc:
+        return {
+            "cost_center_id": cost_center_id,
+            "requested_amount": safe_requested_amount,
+            "remaining_budget": 0.0,
+            "within_budget": False,
+            "overage": max(0.0, safe_requested_amount),
+            "error": _error_payload(
+                "file_not_found",
+                f"Budget data file not found: {exc}",
+                "load_budgets",
+            ),
+        }
+    except KeyError as exc:
+        return {
+            "cost_center_id": cost_center_id,
+            "requested_amount": safe_requested_amount,
+            "remaining_budget": 0.0,
+            "within_budget": False,
+            "overage": max(0.0, safe_requested_amount),
+            "error": _error_payload(
+                "key_error",
+                f"Budget data missing required key: {exc}",
+                "load_budgets",
+            ),
+        }
     except Exception as exc:  # pragma: no cover - defensive branch
         return {
             "cost_center_id": cost_center_id,
@@ -47,7 +82,11 @@ def check_budget(cost_center_id: str, requested_amount: float) -> dict[str, Any]
             "remaining_budget": 0.0,
             "within_budget": False,
             "overage": max(0.0, safe_requested_amount),
-            "error": f"Unable to load budget data: {exc}",
+            "error": _error_payload(
+                "unexpected_error",
+                f"Unable to load budget data: {exc}",
+                "load_budgets",
+            ),
         }
 
     matching_budget = next(
@@ -62,7 +101,11 @@ def check_budget(cost_center_id: str, requested_amount: float) -> dict[str, Any]
             "remaining_budget": 0.0,
             "within_budget": False,
             "overage": max(0.0, safe_requested_amount),
-            "error": f"Unknown cost center: {cost_center_id}",
+            "error": _error_payload(
+                "key_error",
+                f"Unknown cost center: {cost_center_id}",
+                "lookup_cost_center",
+            ),
         }
 
     remaining_budget = float(matching_budget.get("remaining", 0.0))

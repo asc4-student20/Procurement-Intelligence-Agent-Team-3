@@ -52,7 +52,7 @@ def test_assess_risk_data_unavailable_fallback(monkeypatch) -> None:
     def _raise_load_error() -> list[dict[str, object]]:
         raise RuntimeError("simulated loader outage")
 
-    monkeypatch.setattr(risk_assessment, "load_vendors", _raise_load_error)
+    monkeypatch.setattr(risk_assessment.loader, "load_vendors", _raise_load_error)
     result = assess_risk("V-001")
 
     assert result["risk_level"] in {"high", "critical"}

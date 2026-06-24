@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from data.loader import load_vendors
+from data import loader
 from models import RiskAssessmentError, RiskAssessmentResult, RiskLevel
 
 
@@ -30,7 +30,43 @@ def assess_risk(vendor_id: str) -> dict[str, Any]:
           context for deterministic fallback outcomes.
     """
     try:
-        vendors = load_vendors()
+        vendors = loader.load_vendors()
+    except FileNotFoundError as exc:
+        result = RiskAssessmentResult(
+            vendor_id=vendor_id,
+            compliance_flag=False,
+            compliance_notes="",
+            contract_status="unknown",
+            risk_level="high",
+            risk_summary=(
+                "Fallback risk applied because vendor data file is missing; "
+                "escalate for manual procurement review."
+            ),
+            error=RiskAssessmentError(
+                code="vendor_data_unavailable",
+                message=f"file_not_found at load_vendors: {exc}",
+                vendor_id=vendor_id,
+            ),
+        )
+        return result.model_dump(exclude_none=True)
+    except KeyError as exc:
+        result = RiskAssessmentResult(
+            vendor_id=vendor_id,
+            compliance_flag=False,
+            compliance_notes="",
+            contract_status="unknown",
+            risk_level="high",
+            risk_summary=(
+                "Fallback risk applied because vendor data keys are missing; "
+                "escalate for manual procurement review."
+            ),
+            error=RiskAssessmentError(
+                code="vendor_data_unavailable",
+                message=f"key_error at load_vendors: {exc}",
+                vendor_id=vendor_id,
+            ),
+        )
+        return result.model_dump(exclude_none=True)
     except Exception as exc:  # pragma: no cover - defensive branch
         result = RiskAssessmentResult(
             vendor_id=vendor_id,
@@ -44,7 +80,7 @@ def assess_risk(vendor_id: str) -> dict[str, Any]:
             ),
             error=RiskAssessmentError(
                 code="vendor_data_unavailable",
-                message=f"Unable to load vendor data: {exc}",
+                message=f"unexpected_error at load_vendors: {exc}",
                 vendor_id=vendor_id,
             ),
         )

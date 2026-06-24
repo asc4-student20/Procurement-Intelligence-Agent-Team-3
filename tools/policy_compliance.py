@@ -4,8 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from data.loader import load_budgets, load_policies, load_vendors
+from data import loader
 from models import PurchaseRequest
+
+
+def _error_payload(error_type: str, message: str, stage: str) -> dict[str, str]:
+    """Build a normalized typed error payload for deterministic escalation handling."""
+    return {
+        "type": error_type,
+        "message": message,
+        "stage": stage,
+    }
 
 
 def check_policy_compliance(request: PurchaseRequest) -> dict[str, Any]:
@@ -35,16 +44,44 @@ def check_policy_compliance(request: PurchaseRequest) -> dict[str, Any]:
     checked_policy_ids = [f"POL-00{idx}" for idx in range(1, 9)]
 
     try:
-        policies = load_policies()
-        vendors = load_vendors()
-        budgets = load_budgets()
+        policies = loader.load_policies()
+        vendors = loader.load_vendors()
+        budgets = loader.load_budgets()
+    except FileNotFoundError as exc:
+        return {
+            "request_id": request.request_id,
+            "violations": [],
+            "violation_count": 0,
+            "checked_policy_ids": checked_policy_ids,
+            "error": _error_payload(
+                "file_not_found",
+                f"Policy input data file not found: {exc}",
+                "load_policy_inputs",
+            ),
+        }
+    except KeyError as exc:
+        return {
+            "request_id": request.request_id,
+            "violations": [],
+            "violation_count": 0,
+            "checked_policy_ids": checked_policy_ids,
+            "error": _error_payload(
+                "key_error",
+                f"Policy input data missing required key: {exc}",
+                "load_policy_inputs",
+            ),
+        }
     except Exception as exc:  # pragma: no cover - defensive branch
         return {
             "request_id": request.request_id,
             "violations": [],
             "violation_count": 0,
             "checked_policy_ids": checked_policy_ids,
-            "error": f"Unable to evaluate policies due to data load error: {exc}",
+            "error": _error_payload(
+                "unexpected_error",
+                f"Unable to evaluate policies due to data load error: {exc}",
+                "load_policy_inputs",
+            ),
         }
 
     policy_by_id = {
