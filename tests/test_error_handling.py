@@ -21,6 +21,7 @@ class _DummyResult:
             request_id="REQ-DUMMY",
             decision="approve",
             rationale="placeholder rationale",
+            confidence=0.9,
         )
 
 

@@ -23,6 +23,7 @@ def test_agent_escalates_when_budget_data_file_missing(monkeypatch: Any) -> None
                 request_id="REQ-DUMMY",
                 decision="approve",
                 rationale="",
+                confidence=0.9,
             )
 
     async def _fake_run(_prompt: str) -> _DummyResult:

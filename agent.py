@@ -36,6 +36,12 @@ You must follow these constraints:
 - If remaining budget after purchase is below 20% of the quarterly budget, escalate and flag low remaining budget.
 - If evidence has errors or uncertainty, escalation takes precedence.
 - Keep request_id unchanged from the provided input.
+- Return a confidence score between 0.0 and 1.0 inclusive.
+- Confidence scoring rubric:
+    - 1.0: only one check fired and its outcome is unambiguous (for example, sole catering prohibition).
+    - 0.8-0.9: two or more checks fired and all agree.
+    - 0.5-0.7: checks fired but at least one is borderline (near a threshold).
+    - Below 0.5: the decision is not clear; escalate.
 
 Rationale template requirements (mandatory):
 - The rationale must be 2 to 4 complete sentences.
@@ -44,6 +50,67 @@ Rationale template requirements (mandatory):
 - The rationale must include relevant context such as amounts, vendor names, and/or policy IDs.
 - Do not use bullet points.
 """.strip()
+
+
+def _count_fired_checks(
+    budget_result: dict[str, Any],
+    duplication_result: dict[str, Any],
+    policy_result: dict[str, Any],
+    risk_result: dict[str, Any],
+) -> int:
+    """Count how many check categories emitted a non-trivial finding."""
+    fired = 0
+
+    if budget_result.get("error") or not bool(budget_result.get("within_budget", True)):
+        fired += 1
+    if duplication_result.get("error") or bool(duplication_result.get("triggered", False)):
+        fired += 1
+    if policy_result.get("error") or bool(policy_result.get("violations", [])):
+        fired += 1
+
+    risk_error = risk_result.get("error")
+    risk_level = str(risk_result.get("risk_level", "")).strip().lower()
+    if risk_error or risk_level in {"high", "critical"}:
+        fired += 1
+
+    return fired
+
+
+def _compute_confidence(
+    budget_result: dict[str, Any],
+    duplication_result: dict[str, Any],
+    policy_result: dict[str, Any],
+    risk_result: dict[str, Any],
+    escalate_signals: list[str],
+    deny_signals: list[str],
+) -> float:
+    """Compute deterministic confidence score from evidence patterns."""
+    signal_text = " ".join(escalate_signals + deny_signals).lower()
+    has_error = "error" in signal_text
+    has_conflict = bool(escalate_signals) and bool(deny_signals)
+    has_borderline = (
+        "within 5% of the director approval threshold" in signal_text
+        or "low remaining budget after purchase" in signal_text
+    )
+
+    if has_error or has_conflict:
+        return 0.4
+
+    if has_borderline:
+        return 0.6
+
+    fired_checks = _count_fired_checks(
+        budget_result,
+        duplication_result,
+        policy_result,
+        risk_result,
+    )
+
+    if fired_checks == 1:
+        return 1.0
+    if fired_checks >= 2:
+        return 0.85
+    return 0.85
 
 
 def _load_env() -> None:
@@ -383,6 +450,7 @@ def _build_prompt(
         "Rationale must follow the template: 2 to 4 complete sentences, no bullet points, "
         "name specific checks that drove the decision, and include relevant amounts, vendor names, "
         "or policy IDs.\n\n"
+        "Provide confidence as a float from 0.0 to 1.0 using the rubric in the system prompt.\n\n"
         f"budget_result: {budget_result}\n"
         f"duplication_result: {duplication_result}\n"
         f"policy_result: {policy_result}\n"
@@ -426,6 +494,21 @@ async def evaluate_purchase_request(request: PurchaseRequest) -> ProcurementReco
         risk_result,
     )
 
+    confidence = _compute_confidence(
+        budget_result,
+        duplication_result,
+        policy_result,
+        risk_result,
+        escalate_signals,
+        deny_signals,
+    )
+
+    if confidence < 0.5 and decision != "escalate":
+        decision = "escalate"
+        escalate_signals.append(
+            "Confidence below 0.5 indicates unclear decision; escalate for human review."
+        )
+
     prompt = _build_prompt(
         request,
         decision,
@@ -453,6 +536,7 @@ async def evaluate_purchase_request(request: PurchaseRequest) -> ProcurementReco
         recommendation = llm_result.output
         recommendation.request_id = request.request_id
         recommendation.decision = decision
+        recommendation.confidence = confidence
 
         tight_budget_triggered = any(
             "low remaining budget after purchase" in signal.lower()
@@ -472,4 +556,5 @@ async def evaluate_purchase_request(request: PurchaseRequest) -> ProcurementReco
                 f"Agent generation failed: {exc}. "
                 f"Returning safe escalation. {fallback_rationale}"
             ).strip(),
+            confidence=0.4,
         )

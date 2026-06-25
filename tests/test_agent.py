@@ -57,6 +57,7 @@ def _stub_agent_run(monkeypatch: Any) -> None:
                     "and risk assessment check were applied. "
                     "Evidence includes policy context POL-001 and amount $1.00."
                 ),
+                confidence=0.9,
             )
 
     async def _fake_run(_prompt: str) -> _DummyResult:
@@ -104,3 +105,13 @@ async def test_req_015_tight_budget_escalates() -> None:
 
     assert recommendation.decision == "escalate"
     assert "remaining budget" in recommendation.rationale.lower()
+
+
+@pytest.mark.asyncio
+async def test_req_009_unambiguous_deny_has_high_confidence() -> None:
+    """REQ-009 should produce very high confidence for sole unambiguous catering denial."""
+    result = await _run_request("REQ-009")
+    recommendation: ProcurementRecommendation = result.output
+
+    assert recommendation.decision == "deny"
+    assert recommendation.confidence >= 0.9
