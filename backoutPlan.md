@@ -13,12 +13,12 @@
 Fill this section in during Session 4 after the peer review is complete
 and the test suite is passing.
 
-| Field | Value |
-|-------|-------|
-| Last stable commit hash | [run: `git log --oneline -1`] |
-| Last stable tag / version | [fill in if tagged; otherwise use commit hash] |
-| Date of last stable state | |
-| Verified by | |
+| Field                     | Value   |
+| ------------------------- | ------- |
+| Last stable commit hash   | 5f07cc0 |
+| Last stable tag / version | 5f07cc0 |
+| Date of last stable state |         |
+| Verified by               |         |
 
 ---
 
@@ -77,7 +77,7 @@ git revert <bad-commit-hash>
 git push origin <branch-name>
 ```
 
-**Option B. Reset to a known-good commit (use only if Option A is not feasible):**
+**Option B. Reset to a known-==go==od commit (use only if Option A is not feasible):**
 
 ```bash
 git reset --hard <known-good-commit-hash>
@@ -102,13 +102,13 @@ pytest tests/ -v --tb=short --junitxml=docs/test-results.xml
 
 Update this section after completing the revert:
 
-| Field | Value |
-|-------|-------|
-| Date of incident | |
-| Reverted from commit | |
-| Reverted to commit | |
-| Root cause | |
-| Follow-up actions | |
+| Field                | Value |
+| -------------------- | ----- |
+| Date of incident     |       |
+| Reverted from commit |       |
+| Reverted to commit   |       |
+| Root cause           |       |
+| Follow-up actions    |       |
 
 ---
 
@@ -127,11 +127,11 @@ pipeline, list the consumers here and notify them before reverting:
 
 ## 5. Contacts
 
-| Role | Name | Contact |
-|------|------|---------|
-| Release Manager / Decision Maker | | |
-| Technical Lead | | |
-| Instructor / Supervisor | | |
+| Role                             | Name                                     | Contact                                                                              |
+| -------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------ |
+| Release Manager / Decision Maker | Mahalakshmi Nagarajan                    | asc4-student20@labs.webagesolutions.com                                              |
+| Technical Lead                   | Velraj Sermadurai<br />Krishna Rohith    | asc4-student48@labs.webagesolutions.com<br />asc4-student16@labs.webagesolutions.com |
+| Instructor / Supervisor          | Unishkumar Vasu<br />Sakthi Chinnathambi | asc4-student46@labs.webagesolutions.com<br />asc4-student37@labs.webagesolutions.com |
 
 ---
 
