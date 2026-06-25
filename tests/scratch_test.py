@@ -1,4 +1,9 @@
 import asyncio
+import os
+
+# Allow agent import in test environments without real model credentials.
+os.environ.setdefault("OPENAI_API_KEY", "test-key")
+
 from agent import evaluate_purchase_request
 from models import PurchaseRequest
 
@@ -76,4 +81,5 @@ async def main():
         print(f"rationale: {result.rationale}")
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
