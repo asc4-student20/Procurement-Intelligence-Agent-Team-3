@@ -294,7 +294,7 @@ def _derive_decision_and_signals(
         risk_level = str(risk_result.get("risk_level", "")).strip().lower()
         risk_summary = str(risk_result.get("risk_summary", "")).strip()
 
-        if risk_level in {"high", "critical"}:
+        if risk_level == "critical":
             signal = f"Risk level is {risk_level}."
             if risk_summary:
                 signal = f"{signal} {risk_summary}"

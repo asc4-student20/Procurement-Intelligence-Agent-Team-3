@@ -17,18 +17,24 @@ from data.loader import load_requests
 from models import PurchaseRequest, ProcurementRecommendation
 
 
-def _request_by_id(request_id: str) -> PurchaseRequest:
-    """Return a typed request from mock_data/requests.json by request_id."""
+def _fixture_by_id(request_id: str) -> dict[str, Any]:
+    """Return raw request fixture from mock_data/requests.json by request_id."""
     requests_data = load_requests()
     for request_data in requests_data:
         if request_data.get("request_id") == request_id:
-            payload = {
-                key: value
-                for key, value in request_data.items()
-                if key in PurchaseRequest.model_fields
-            }
-            return PurchaseRequest(**payload)
+            return request_data
     raise ValueError(f"Request ID {request_id} not found in mock_data/requests.json")
+
+
+def _request_by_id(request_id: str) -> PurchaseRequest:
+    """Return a typed request from mock_data/requests.json by request_id."""
+    request_data = _fixture_by_id(request_id)
+    payload = {
+        key: value
+        for key, value in request_data.items()
+        if key in PurchaseRequest.model_fields
+    }
+    return PurchaseRequest(**payload)
 
 
 async def _run_request(request_id: str) -> SimpleNamespace:
@@ -59,40 +65,32 @@ def _stub_agent_run(monkeypatch: Any) -> None:
     monkeypatch.setattr(agent_module.procurement_agent, "run", _fake_run)
 
 
-def _assert_recommendation(
-    result: Any,
-    expected_decision: str,
-) -> None:
-    """Assert decision and rationale output contract for a run result."""
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "request_id",
+    [
+        # deny-type
+        "REQ-006",
+        "REQ-007",
+        "REQ-008",
+        "REQ-009",
+        # escalate-type
+        "REQ-010",
+        "REQ-011",
+        # approve-type
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+    ],
+)
+async def test_agent_matches_fixture_expected_outcome(request_id: str) -> None:
+    """Decision should match expected_outcome from fixture for sampled requests."""
+    fixture = _fixture_by_id(request_id)
+    expected_outcome = str(fixture["expected_outcome"])
+
+    result = await _run_request(request_id)
     recommendation: ProcurementRecommendation = result.output
-    assert recommendation.decision == expected_decision
+
+    assert expected_outcome == recommendation.decision
     assert isinstance(recommendation.rationale, str)
     assert recommendation.rationale.strip()
-
-
-@pytest.mark.asyncio
-async def test_agent_req_001_approve() -> None:
-    """REQ-001 should be approved."""
-    result = await _run_request("REQ-001")
-    _assert_recommendation(result, "approve")
-
-
-@pytest.mark.asyncio
-async def test_agent_req_006_deny_budget_overage() -> None:
-    """REQ-006 should be denied for CC-003 budget overage."""
-    result = await _run_request("REQ-006")
-    _assert_recommendation(result, "deny")
-
-
-@pytest.mark.asyncio
-async def test_agent_req_009_policy_deny_catering() -> None:
-    """REQ-009 should be denied due to POL-004 catering prohibition."""
-    result = await _run_request("REQ-009")
-    _assert_recommendation(result, "deny")
-
-
-@pytest.mark.asyncio
-async def test_agent_req_011_escalate_compliance_flag() -> None:
-    """REQ-011 should be escalated for compliance-flagged vendor."""
-    result = await _run_request("REQ-011")
-    _assert_recommendation(result, "escalate")

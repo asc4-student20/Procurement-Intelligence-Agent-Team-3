@@ -118,6 +118,9 @@ def check_vendor_duplication(
         and str(row.get("contract_status", "")) == "active"
     ]
     contracted_category = len(active_same_category) > 0
+    selected_vendor_is_contracted = any(
+        str(row.get("vendor_id", "")) == vendor_id for row in active_same_category
+    )
 
     conflicting_rows = [
         row
@@ -140,13 +143,20 @@ def check_vendor_duplication(
     ]
 
     above_threshold = safe_amount > threshold_amount
-    triggered = contracted_category and above_threshold and len(conflicting_vendor_ids) > 0
+    triggered = (
+        contracted_category
+        and not selected_vendor_is_contracted
+        and above_threshold
+        and len(conflicting_vendor_ids) > 0
+    )
 
     if triggered:
         reason = (
             "POL-001 triggered: amount exceeds threshold in a contracted category "
             "with conflicting active vendors."
         )
+    elif selected_vendor_is_contracted:
+        reason = "Selected vendor is already contracted in this category; POL-001 not triggered."
     elif not contracted_category:
         reason = "Category has no active contracts; POL-001 does not trigger."
     elif not above_threshold:
