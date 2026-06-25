@@ -94,3 +94,13 @@ async def test_agent_matches_fixture_expected_outcome(request_id: str) -> None:
     assert expected_outcome == recommendation.decision
     assert isinstance(recommendation.rationale, str)
     assert recommendation.rationale.strip()
+
+
+@pytest.mark.asyncio
+async def test_req_015_tight_budget_escalates() -> None:
+    """REQ-015 should escalate when post-purchase budget is below the tight-budget threshold."""
+    result = await _run_request("REQ-015")
+    recommendation: ProcurementRecommendation = result.output
+
+    assert recommendation.decision == "escalate"
+    assert "remaining budget" in recommendation.rationale.lower()

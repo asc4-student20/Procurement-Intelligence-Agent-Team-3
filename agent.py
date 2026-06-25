@@ -18,6 +18,7 @@ from tools.vendor_duplication import check_vendor_duplication
 Decision = Literal["approve", "deny", "escalate"]
 DIRECTOR_APPROVAL_THRESHOLD = 50_000.0
 NEAR_THRESHOLD_PERCENT = 0.05
+TIGHT_BUDGET_THRESHOLD_PERCENT = 0.20
 
 SYSTEM_PROMPT = """
 You are a procurement pre-screening assistant.
@@ -32,6 +33,7 @@ You must follow these constraints:
 - If any tool returns an escalate signal, the final decision is always escalate.
 - If any tool returns an error payload, explicitly reference the error in rationale and escalate.
 - If the request amount is within 5% of the director approval threshold, escalate.
+- If remaining budget after purchase is below 20% of the quarterly budget, escalate and flag low remaining budget.
 - If evidence has errors or uncertainty, escalation takes precedence.
 - Keep request_id unchanged from the provided input.
 
@@ -183,6 +185,15 @@ def _build_template_rationale(
     )
 
     error_signals = [signal for signal in escalate_signals if "error" in signal.lower()]
+    sentence_4 = ""
+    tight_budget_signal = next(
+        (
+            signal
+            for signal in escalate_signals
+            if "low remaining budget after purchase" in signal.lower()
+        ),
+        "",
+    )
 
     if decision == "approve":
         sentence_3 = (
@@ -195,12 +206,22 @@ def _build_template_rationale(
             "and procurement should require a corrected request before approval."
         )
     else:
-        sentence_3 = (
-            "The evidence supports escalation because higher-risk or error conditions were detected and "
-            "must be reviewed by a human procurement officer."
-        )
+        if tight_budget_signal:
+            sentence_3 = (
+                "The evidence supports escalation because post-purchase remaining budget falls below 20% "
+                "of the quarterly allocation and needs finance review."
+            )
+            sentence_4 = tight_budget_signal
+        else:
+            sentence_3 = (
+                "The evidence supports escalation because higher-risk or error conditions were detected and "
+                "must be reviewed by a human procurement officer."
+            )
+            sentence_4 = ""
 
     sentences = [sentence_1, sentence_2, sentence_3]
+    if sentence_4:
+        sentences.append(sentence_4)
     if error_signals:
         sentences.append(f"Error context: {error_signals[0]}.")
 
@@ -310,6 +331,25 @@ def _derive_decision_and_signals(
             )
         )
 
+    remaining_budget = float(budget_result.get("remaining_budget", 0.0))
+    quarterly_budget = float(budget_result.get("quarterly_budget", 0.0))
+    if (
+        not budget_result.get("error")
+        and bool(budget_result.get("within_budget", True))
+        and not deny_signals
+        and quarterly_budget > 0.0
+    ):
+        post_purchase_remaining = max(0.0, remaining_budget - request.total_amount)
+        post_purchase_ratio = post_purchase_remaining / quarterly_budget
+        if post_purchase_ratio < TIGHT_BUDGET_THRESHOLD_PERCENT:
+            escalate_signals.append(
+                (
+                    "Low remaining budget after purchase: "
+                    f"${post_purchase_remaining:,.2f} "
+                    f"({post_purchase_ratio:.1%} of quarterly budget), below 20% threshold."
+                )
+            )
+
     if escalate_signals:
         decision: Decision = "escalate"
     elif deny_signals:
@@ -414,7 +454,14 @@ async def evaluate_purchase_request(request: PurchaseRequest) -> ProcurementReco
         recommendation.request_id = request.request_id
         recommendation.decision = decision
 
-        if not _rationale_meets_template(recommendation.rationale, request):
+        tight_budget_triggered = any(
+            "low remaining budget after purchase" in signal.lower()
+            for signal in escalate_signals
+        )
+
+        if tight_budget_triggered and "remaining budget" not in recommendation.rationale.lower():
+            recommendation.rationale = fallback_rationale
+        elif not _rationale_meets_template(recommendation.rationale, request):
             recommendation.rationale = fallback_rationale
         return recommendation
     except Exception as exc:  # pragma: no cover - defensive fallback
