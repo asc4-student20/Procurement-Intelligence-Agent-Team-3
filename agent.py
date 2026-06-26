@@ -19,6 +19,7 @@ Decision = Literal["approve", "deny", "escalate"]
 DIRECTOR_APPROVAL_THRESHOLD = 50_000.0
 NEAR_THRESHOLD_PERCENT = 0.05
 TIGHT_BUDGET_THRESHOLD_PERCENT = 0.20
+LOW_REMAINING_BUDGET_ABSOLUTE_CAP = 10_000.0
 
 SYSTEM_PROMPT = """
 You are a procurement pre-screening assistant.
@@ -404,6 +405,7 @@ def _derive_decision_and_signals(
         not budget_result.get("error")
         and bool(budget_result.get("within_budget", True))
         and not deny_signals
+        and remaining_budget <= LOW_REMAINING_BUDGET_ABSOLUTE_CAP
         and quarterly_budget > 0.0
     ):
         post_purchase_remaining = max(0.0, remaining_budget - request.total_amount)
